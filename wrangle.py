@@ -14,7 +14,7 @@ def new_zillow_db():
     
     zillow = pd.read_sql('''SELECT p.bathroomcnt, p.bedroomcnt, p.calculatedfinishedsquarefeet,
     p.fips, p.lotsizesquarefeet, p.regionidcity, p.regionidcounty, p.regionidzip, p.yearbuilt, 
-    p.taxvaluedollarcnt, pd.transactiondate, pd.logerror
+    p.taxvaluedollarcnt, p.garagecarcnt, pd.transactiondate, pd.logerror
     FROM properties_2017 as p
 
     JOIN predictions_2017 as pd
@@ -23,7 +23,13 @@ def new_zillow_db():
 
     WHERE propertylandusedesc IN ("Single Family Residential",                       
                               "Inferred Single Family Residential")
-
+    AND pd.transactiondate BETWEEN '2017-01-01' AND '2017-12-31'
+    AND p.bedroomcnt > 0
+    AND p.bathroomcnt > 0
+    AND p.calculatedfinishedsquarefeet IS NOT NULL
+    AND p.lotsizesquarefeet IS NOT NULL
+    AND p.taxvaluedollarcnt IS NOT NULL
+    AND p.yearbuilt IS NOT NULL
     ;''', get_connection('zillow'))
     return zillow
 
@@ -51,8 +57,8 @@ def wrangle_zillow():
         df = new_zillow_db()
         # Cache data
         df.to_csv('zillow_project.csv')
-    # drop null values
-    df = df.dropna()
+    # convert null values of garage count to mean value
+    df.garagecarcnt = df.garagecarcnt.fillna(2.0)
     # change bedroom count to an integer
     df.bedroomcnt = df.bedroomcnt.astype(int)
     # change year built to an integer
@@ -66,19 +72,15 @@ def wrangle_zillow():
     # rename columns for readability
     df = df.rename(columns={'bedroomcnt': 'bedrooms', 'bathroomcnt': 'bathrooms', 'calculatedfinishedsquarefeet': 'sqft', 
                         'taxvaluedollarcnt': 'tax_value', 'yearbuilt': 'year', 'taxamount': 'tax_amount','lotsizesquarefeet':'lot_size', 
-                        'regionidzip':'zipcode','regionidcounty':'county','regionidcity':'city'})
-    # remove rows with 0 bedrooms
-    df = df[df['bedrooms'] != 0]
-    # remove rows with 0 bathrooms
-    df = df[df['bathrooms'] != 0]
-    # remove rows with 8 or more bedrooms
-    df = df[df['bedrooms'] < 5]
-    # remove rows with 6 or more bathrooms
-    df = df[df['bathrooms'] < 4]
+                        'regionidzip':'zipcode','regionidcounty':'county','regionidcity':'city','garagecarcnt':'garages'})
+    # remove rows with 6 or more bedrooms
+    df = df[df['bedrooms'] < 6]
+    # remove rows with 5 or more bathrooms
+    df = df[df['bathrooms'] < 5]
     # remove rows with values less than or equal to 700 square feet
-    df = df[df.sqft > 1000]
+    df = df[df.sqft > 700]
     # remove rows with values greater than or equal to 10_000 square feet
-    df = df[df.sqft < 3000]
+    df = df[df.sqft < 10000]
     # remove rows with tax values greater than or equal to 600000
     df = df[df.tax_value < 600000]
     # remove rows with tax values less than or equal to 1000
