@@ -10,6 +10,8 @@ from sklearn.preprocessing import MinMaxScaler, StandardScaler, PolynomialFeatur
 from sklearn.linear_model import LinearRegression, LassoLars, TweedieRegressor
 from sklearn.feature_selection import SelectKBest, f_regression 
 from sklearn.metrics import mean_squared_error, r2_score, explained_variance_score
+import warnings
+warnings.filterwarnings("ignore")
 
 # create a function to print the regression errors for the model
 def regression_errors(y, yhat):
@@ -34,7 +36,7 @@ def regression_errors(y, yhat):
     print(f'Model RMSE is: {"{:.1f}".format(RMSE)}')
 
 # create a function to print the baseline mean errors
-def baseline_mean_errors(y):
+def baseline_mean_errors(y, baseline):
     '''This function takes in a single argument, y (the target variable) and prints the sum of squares
     error, mean squared error, and root mean squared error for baseline.'''
     # calculate the baseline sum of squares error
@@ -49,7 +51,7 @@ def baseline_mean_errors(y):
     print(f'RMSE baseline: {"{:.1f}".format(RMSE_baseline)}')
 
 # create a function to determine if the model performs better than baseline
-def better_than_baseline(y, yhat):
+def better_than_baseline(y, yhat, baseline):
     '''This function takes in two arguments, y (target variable) and yhat (model predictions) and calculates the 
     model SSE, MSE, and RMSE against the baseline. The function prints three strings, one for each result, with a
     boolean for whether or not the model value is better than baseline value.'''
@@ -74,3 +76,138 @@ def plot_residuals(y, yhat):
     plt.title('Residuals for Home Value')
     plt.show()
 
+def lasso_lars_model(X_train_scaled, X_validate_scaled, y_train, y_validate, train, a):
+    # create the model object
+    lars = LassoLars(alpha=a)
+    # fit the model to our training data. We must specify the column in y_train, 
+    # since we have converted it to a dataframe from a series! 
+    lars.fit(X_train_scaled, y_train.tax_value)
+
+    # predict train
+    y_train['tax_pred_lars'] = lars.predict(X_train_scaled)
+
+    # evaluate: rmse
+    rmse_train = mean_squared_error(y_train.tax_value, y_train.tax_pred_lars)**(1/2)
+
+    # predict validate
+    y_validate['tax_pred_lars'] = lars.predict(X_validate_scaled)
+
+    # evaluate: rmse
+    rmse_validate = mean_squared_error(y_validate.tax_value, y_validate.tax_pred_lars)**(1/2)
+
+    train['yhat'] = lars.predict(X_train_scaled)
+
+    r2 = r2 = r2_score(train.tax_value, train.yhat)
+
+    RMSE = sqrt(mean_squared_error(train.tax_value, train.yhat))
+    RMSE_baseline = sqrt(mean_squared_error(train.tax_value, train.baseline))
+    better =  RMSE < RMSE_baseline
+
+    return ['Lasso Lars', rmse_train, rmse_validate, r2, better]
+
+def glm_model(X_train_scaled, X_validate_scaled, y_train, y_validate, train, p, a):
+    # create the model object
+    glm = TweedieRegressor(power=p, alpha=a)
+
+    # fit the model to our training data. We must specify the column in y_train, 
+    # since we have converted it to a dataframe from a series! 
+    glm.fit(X_train_scaled, y_train.tax_value)
+
+    # predict train
+    y_train['value_pred_glm'] = glm.predict(X_train_scaled)
+
+    # evaluate: rmse
+    rmse_train = mean_squared_error(y_train.tax_value, y_train.value_pred_glm)**(1/2)
+
+    # predict validate
+    y_validate['value_pred_glm'] = glm.predict(X_validate_scaled)
+
+    # evaluate: rmse
+    rmse_validate = mean_squared_error(y_validate.tax_value, y_validate.value_pred_glm)**(1/2)
+
+    train['yhat'] = glm.predict(X_train_scaled)
+    
+    r2 = r2_score(train.tax_value, train.yhat)
+    
+    RMSE = sqrt(mean_squared_error(train.tax_value, train.yhat))
+    RMSE_baseline = sqrt(mean_squared_error(train.tax_value, train.baseline))
+    better =  RMSE < RMSE_baseline
+
+    return ['Tweedie Regressor', rmse_train, rmse_validate, r2, better]
+
+
+def poly_lm(X_train_scaled, X_validate_scaled, X_test_scaled, y_train, y_validate, train, d):
+    # make the polynomial features to get a new set of features
+    pf = PolynomialFeatures(degree=d)
+
+    # fit and transform X_train_scaled
+    X_train_degree2 = pf.fit_transform(X_train_scaled)
+
+    # transform X_validate_scaled & X_test_scaled
+    X_validate_degree2 = pf.transform(X_validate_scaled)
+    X_test_degree2 = pf.transform(X_test_scaled)
+    
+    # create the model object
+    lm2 = LinearRegression()
+
+    # fit the model to our training data. We must specify the column in y_train, 
+    # since we have converted it to a dataframe from a series! 
+    lm2.fit(X_train_degree2, y_train.tax_value)
+
+    # predict train
+    y_train['value_pred_lm2'] = lm2.predict(X_train_degree2)
+
+    # evaluate: rmse
+    rmse_train = mean_squared_error(y_train.tax_value, y_train.value_pred_lm2)**(1/2)
+
+    # predict validate
+    y_validate['value_pred_lm2'] = lm2.predict(X_validate_degree2)
+
+    # evaluate: rmse
+    rmse_validate = mean_squared_error(y_validate.tax_value, y_validate.value_pred_lm2)**(1/2)
+
+    train['yhat'] = lm2.predict(X_train_degree2)
+
+    r2 = r2_score(train.tax_value, train.yhat)
+    
+    RMSE = sqrt(mean_squared_error(train.tax_value, train.yhat))
+    RMSE_baseline = sqrt(mean_squared_error(train.tax_value, train.baseline))
+    better =  RMSE < RMSE_baseline
+
+    return ["Poly Linear Regression", rmse_train, rmse_validate, r2, better]
+
+def lrm(X_train_scaled, X_validate_scaled, y_train, y_validate, train):
+    
+    # create the model object
+    lm = LinearRegression()
+
+    # fit the model to our training data. We must specify the column in y_train, 
+    # since we have converted it to a dataframe from a series! 
+    lm.fit(X_train_scaled, y_train.tax_value)
+
+    # predict train
+    y_train['value_pred_lm'] = lm.predict(X_train_scaled)
+
+    # evaluate: rmse
+    rmse_train = mean_squared_error(y_train.tax_value, y_train.value_pred_lm)**(1/2)
+
+    # predict validate
+    y_validate['value_pred_lm'] = lm.predict(X_validate_scaled)
+
+    # evaluate: rmse
+    rmse_validate = mean_squared_error(y_validate.tax_value, y_validate.value_pred_lm)**(1/2)
+
+    train['yhat'] = lm.predict(X_train_scaled)
+
+    r2 = r2_score(train.tax_value, train.yhat)
+    
+    RMSE = sqrt(mean_squared_error(train.tax_value, train.yhat))
+    RMSE_baseline = sqrt(mean_squared_error(train.tax_value, train.baseline))
+    better =  RMSE < RMSE_baseline
+
+    return ["OLS", rmse_train, rmse_validate, r2, better]
+
+def model_performance(m1, m2, m3, m4):
+    df = pd.DataFrame([m1,m2,m3,m4])
+    df = df.rename(columns={0:'Model', 1:'Train RMSE', 2:'Validate RMSE', 3:'r2 score', 4:'Better than Baseline'})
+    return df
