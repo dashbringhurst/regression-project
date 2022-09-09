@@ -12,9 +12,8 @@ def get_connection(db, user=env.user, host=env.host, password=env.password):
 def new_zillow_db():
     '''The function uses the get_connection function to connect to a database and retrieve the zillow dataset'''
     
-    zillow = pd.read_sql('''SELECT p.bathroomcnt, p.bedroomcnt, p.calculatedfinishedsquarefeet,
-    p.fips, p.lotsizesquarefeet, p.regionidcity, p.regionidcounty, p.regionidzip, p.yearbuilt, 
-    p.taxvaluedollarcnt, p.garagecarcnt, pd.transactiondate, pd.logerror
+    zillow = pd.read_sql('''SELECT p.bathroomcnt, p.bedroomcnt, p.calculatedfinishedsquarefeet, p.garagecarcnt,
+    p.fips, p.lotsizesquarefeet, p.yearbuilt, p.taxvaluedollarcnt, pd.transactiondate, pd.logerror
     FROM properties_2017 as p
 
     JOIN predictions_2017 as pd
@@ -65,33 +64,36 @@ def wrangle_zillow():
     df.yearbuilt = df.yearbuilt.astype(int)
     # change fips to an integer
     df.fips = df.fips.astype(int)
-    # change regionidcounty to an integer
-    df.regionidcounty = df.regionidcounty.astype(int)
-    # chang regionidcity to an integer
-    df.regionidcity = df.regionidcity.astype(int)
     # rename columns for readability
     df = df.rename(columns={'bedroomcnt': 'bedrooms', 'bathroomcnt': 'bathrooms', 'calculatedfinishedsquarefeet': 'sqft', 
                         'taxvaluedollarcnt': 'tax_value', 'yearbuilt': 'year', 'taxamount': 'tax_amount','lotsizesquarefeet':'lot_size', 
-                        'regionidzip':'zipcode','regionidcounty':'county','regionidcity':'city','garagecarcnt':'garages'})
+                        'garagecarcnt':'garages'})
     # remove rows with 6 or more bedrooms
     df = df[df['bedrooms'] < 6]
     # remove rows with 5 or more bathrooms
     df = df[df['bathrooms'] < 5]
     # remove rows with values less than or equal to 700 square feet
     df = df[df.sqft > 700]
-    # remove rows with values greater than or equal to 10_000 square feet
-    df = df[df.sqft < 10000]
-    # remove rows with tax values greater than or equal to 600000
-    df = df[df.tax_value < 600000]
+    # remove rows with values greater than or equal to 11_000 square feet
+    df = df[df.sqft < 11000]
+    # remove rows with tax values greater than or equal to 700000
+    df = df[df.tax_value < 700000]
     # remove rows with tax values less than or equal to 1000
     df = df[df.tax_value > 100000]
     # remove rows with a year less than or equal to 1899
     df = df[df.year > 1899]
-    # remove rows with lot size less than 10000 square feet
-    df = df[df.lot_size < 10000]
+    # remove rows with lot size less than 12000 square feet
+    df = df[df.lot_size < 12000]
     # remove rows with lot size greater than 1000 square feet 
     df = df[df.lot_size > 1000]
-
+    df.fips = df.fips.astype(str)
+    # create dummies for the 'day' and 'time' columns
+    dummy_df = pd.get_dummies(df[['fips']], dummy_na=False)
+    # concatenate the dummy columns and the original dataframe
+    df = pd.concat([df, dummy_df], axis=1)
+    df['bed_bath'] = df.bathrooms + df.bedrooms
+    df.fips = df.fips.astype(int)
+    df['lot_minus_home'] = df.lot_size - df.sqft
     return df
 
 def split_data(df):
