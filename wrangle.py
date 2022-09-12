@@ -12,8 +12,8 @@ def get_connection(db, user=env.user, host=env.host, password=env.password):
 def new_zillow_db():
     '''The function uses the get_connection function to connect to a database and retrieve the zillow dataset'''
     
-    zillow = pd.read_sql('''SELECT p.bathroomcnt, p.bedroomcnt, p.calculatedfinishedsquarefeet, p.garagecarcnt,
-    p.fips, p.lotsizesquarefeet, p.yearbuilt, p.taxvaluedollarcnt, pd.transactiondate, pd.logerror
+    zillow = pd.read_sql('''SELECT p.bathroomcnt, p.bedroomcnt, p.calculatedfinishedsquarefeet, p.fips, 
+    p.lotsizesquarefeet, p.yearbuilt, p.taxvaluedollarcnt, p.regionidzip, pd.transactiondate, pd.logerror
     FROM properties_2017 as p
 
     JOIN predictions_2017 as pd
@@ -29,6 +29,7 @@ def new_zillow_db():
     AND p.lotsizesquarefeet IS NOT NULL
     AND p.taxvaluedollarcnt IS NOT NULL
     AND p.yearbuilt IS NOT NULL
+    AND p.regionidzip IS NOT NULL
     ;''', get_connection('zillow'))
     return zillow
 
@@ -56,8 +57,6 @@ def wrangle_zillow():
         df = new_zillow_db()
         # Cache data
         df.to_csv('zillow_project.csv')
-    # convert null values of garage count to mean value
-    df.garagecarcnt = df.garagecarcnt.fillna(2.0)
     # change bedroom count to an integer
     df.bedroomcnt = df.bedroomcnt.astype(int)
     # change year built to an integer
@@ -66,8 +65,8 @@ def wrangle_zillow():
     df.fips = df.fips.astype(int)
     # rename columns for readability
     df = df.rename(columns={'bedroomcnt': 'bedrooms', 'bathroomcnt': 'bathrooms', 'calculatedfinishedsquarefeet': 'sqft', 
-                        'taxvaluedollarcnt': 'tax_value', 'yearbuilt': 'year', 'taxamount': 'tax_amount','lotsizesquarefeet':'lot_size', 
-                        'garagecarcnt':'garages'})
+                        'taxvaluedollarcnt': 'tax_value', 'yearbuilt': 'year','lotsizesquarefeet':'lot_size', 
+                        'regionidzip':'zipcode'})
     # remove rows with 6 or more bedrooms
     df = df[df['bedrooms'] < 6]
     # remove rows with 5 or more bathrooms
@@ -78,7 +77,7 @@ def wrangle_zillow():
     df = df[df.sqft < 11000]
     # remove rows with tax values greater than or equal to 700000
     df = df[df.tax_value < 700000]
-    # remove rows with tax values less than or equal to 1000
+    # remove rows with tax values less than or equal to 10000
     df = df[df.tax_value > 100000]
     # remove rows with a year less than or equal to 1899
     df = df[df.year > 1899]
@@ -91,8 +90,11 @@ def wrangle_zillow():
     dummy_df = pd.get_dummies(df[['fips']], dummy_na=False)
     # concatenate the dummy columns and the original dataframe
     df = pd.concat([df, dummy_df], axis=1)
+    # create a new column for the total number of bedrooms and bathrooms
     df['bed_bath'] = df.bathrooms + df.bedrooms
+    # convert fips to an integer
     df.fips = df.fips.astype(int)
+    # create a new column for the difference between lot size and home size
     df['lot_minus_home'] = df.lot_size - df.sqft
     return df
 
@@ -136,7 +138,7 @@ def quantile_scaler(a,b,c):
 
 def standard_scaler(a,b,c):
     '''This function applies the .StandardScaler method from sklearn to three arguments, a, b, and c, 
-    and returns the scaled versions of each variable.'''
+    (X_train, X_validate, and X_test) and returns the scaled versions of each variable.'''
     # make the scaler
     scaler = StandardScaler()
     # fit and transform the X_train data
@@ -150,7 +152,7 @@ def standard_scaler(a,b,c):
 
 def minmax_scaler(a,b,c):
     '''This function applies the .MinMaxScaler method from sklearn to three arguments, a, b, and c,
-    and returns the scaled versions of each variable.'''
+    (X_train, X_validate, and X_test) and returns the scaled versions of each variable.'''
     # make the scaler
     scaler = MinMaxScaler()
     # fit and transform the X_train data
@@ -164,7 +166,7 @@ def minmax_scaler(a,b,c):
 
 def robust_scaler(a,b,c):
     '''This function applies the .RobustScaler method from sklearn to three arguments, a, b, and c,
-    and returns the scaled versions of each variable.'''
+    (X_train, X_validate, and X_test) and returns the scaled versions of each variable.'''
     # make the scaler
     scaler = RobustScaler()
     # fit and transform the X_train data
